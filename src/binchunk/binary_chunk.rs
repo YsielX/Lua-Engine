@@ -1,15 +1,15 @@
-struct Header {
-    signature: [u8;4],
-    version: u8,
-    format: u8,
-    luac_data: [u8;6],
-    cint_size: u8,
-    sizet_size: u8,
-    instruction_size: u8,
-    lua_integer_size: u8,
-    lua_number_size: u8,
-    luac_int: i64,
-    luac_num: f64,
+pub struct Header {
+    pub signature: [u8;4],
+    pub version: u8,
+    pub format: u8,
+    pub luac_data: [u8;6],
+    pub cint_size: u8,
+    pub sizet_size: u8,
+    pub instruction_size: u8,
+    pub lua_integer_size: u8,
+    pub lua_number_size: u8,
+    pub luac_int: i64,
+    pub luac_num: f64,
 }
 
 pub struct Prototype {
@@ -29,9 +29,9 @@ pub struct Prototype {
 }
 
 pub struct BinaryChunk {
-    header: Header,
-    size_upvalues: u8,
-    main_func: Box<Prototype>
+    pub header: Header,
+    pub size_upvalues: u8,
+    pub main_func: Box<Prototype>
 }
 
 pub enum Constant {
