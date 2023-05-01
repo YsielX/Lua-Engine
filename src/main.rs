@@ -1,20 +1,47 @@
-mod binchunk;
 mod vm;
-use binchunk::binary_chunk::{Constant, Prototype};
+mod api;
+mod state;
+mod binchunk;
 use std::env;
 use std::fs;
 use std::io;
+use api::lua_state::LuaAPI;
 use vm::instruction::Instruction;
 use vm::opcodes::{OpArgMode, OpMode};
+use binchunk::binary_chunk::{Constant, Prototype};
+
+// fn main() -> io::Result<()> {
+//     let mut args = env::args();
+//     let _program = args.next().expect("no program name");
+//     let arg1 = args.next().expect("no first argument");
+//     let data = fs::read(arg1).expect("Cannot open file");
+
+//     let binarychunk = binchunk::undump(data);
+//     list(&binarychunk.main_func);
+
+//     Ok(())
+// }
 
 fn main() -> io::Result<()> {
-    let mut args = env::args();
-    let _program = args.next().expect("no program name");
-    let arg1 = args.next().expect("no first argument");
-    let data = fs::read(arg1).expect("Cannot open file");
-
-    let binarychunk = binchunk::undump(data);
-    list(&binarychunk.main_func);
+    let mut ls = state::lua_state::LuaState::new();
+    ls.push_boolean(true);
+    println!("{:#?}",ls);
+    ls.push_integer(10);
+    println!("{:#?}",ls);
+    ls.push_nil();
+    println!("{:#?}",ls);
+    ls.push_string(String::from("hello"));
+    println!("{:#?}",ls);
+    ls.push_value(-4);
+    println!("{:#?}",ls);
+    ls.replace(3);
+    println!("{:#?}",ls);
+    ls.set_top(6);
+    println!("{:#?}",ls);
+    ls.remove(-3);
+    println!("{:#?}",ls);
+    ls.set_top(-5);
+    println!("{:#?}",ls);
 
     Ok(())
 }
