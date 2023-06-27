@@ -1,3 +1,9 @@
+use crate::state::lua_state::LuaState;
+use super::inst_for::*;
+use super::inst_load::*;
+use super::inst_misc::*;
+use super::inst_operators::*;
+
 #[derive(Copy, Clone)]
 pub enum OpMode {
     IABC,
@@ -20,66 +26,60 @@ pub struct Opcode {
     pub arg_b_mode: OpArgMode,
     pub arg_c_mode: OpArgMode,
     pub op_mode: OpMode,
-    pub name: &'static str
+    pub name: &'static str,
+    pub action: fn(i: u32, vm: &mut LuaState)
 }
 
 pub const OPCODES: &[Opcode] = &[
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IABC, "MOVE    "), // R(A) := R(B)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgN, OpMode::IABx, "LOADK   "), // R(A) := Kst(Bx)
-    opcode( false, true, OpArgMode::OpArgN, OpArgMode::OpArgN, OpMode::IABx, "LOADKX  "), // R(A) := Kst(extra arg)
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgU, OpMode::IABC, "LOADBOOL"), // R(A) := (bool)B; if (C) pc++
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgN, OpMode::IABC, "LOADNIL "), // R(A), R(A+1), ..., R(A+B) := nil
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgN, OpMode::IABC, "GETUPVAL"), // R(A) := UpValue[B]
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgK, OpMode::IABC, "GETTABUP"), // R(A) := UpValue[B][RK(C)]
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgK, OpMode::IABC, "GETTABLE"), // R(A) := R(B)[RK(C)]
-    opcode( false, false, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "SETTABUP"), // UpValue[A][RK(B)] := RK(C)
-    opcode( false, false, OpArgMode::OpArgU, OpArgMode::OpArgN, OpMode::IABC, "SETUPVAL"), // UpValue[B] := R(A)
-    opcode( false, false, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "SETTABLE"), // R(A)[RK(B)] := RK(C)
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgU, OpMode::IABC, "NEWTABLE"), // R(A) := {} (size = B,C)
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgK, OpMode::IABC, "SELF    "), // R(A+1) := R(B); R(A) := R(B)[RK(C)]
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "ADD     "), // R(A) := RK(B) + RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "SUB     "), // R(A) := RK(B) - RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "MUL     "), // R(A) := RK(B) * RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "MOD     "), // R(A) := RK(B) % RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "POW     "), // R(A) := RK(B) ^ RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "DIV     "), // R(A) := RK(B) / RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "IDIV    "), // R(A) := RK(B) // RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "BAND    "), // R(A) := RK(B) & RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "BOR     "), // R(A) := RK(B) | RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "BXOR    "), // R(A) := RK(B) ~ RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "SHL     "), // R(A) := RK(B) << RK(C)
-    opcode( false, true, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "SHR     "), // R(A) := RK(B) >> RK(C)
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IABC, "UNM     "), // R(A) := -R(B)
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IABC, "BNOT    "), // R(A) := ~R(B)
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IABC, "NOT     "), // R(A) := not R(B)
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IABC, "LEN     "), // R(A) := length of R(B)
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgR, OpMode::IABC, "CONCAT  "), // R(A) := R(B).. ... ..R(C)
-    opcode( false, false, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IAsBx, "JMP     "), // pc+=sBx; if (A) close all upvalues >= R(A - 1)
-    opcode( true, false, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "EQ      "), // if ((RK(B) == RK(C)) ~= A) then pc++
-    opcode( true, false, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "LT      "), // if ((RK(B) <  RK(C)) ~= A) then pc++
-    opcode( true, false, OpArgMode::OpArgK, OpArgMode::OpArgK, OpMode::IABC, "LE      "), // if ((RK(B) <= RK(C)) ~= A) then pc++
-    opcode( true, false, OpArgMode::OpArgN, OpArgMode::OpArgU, OpMode::IABC, "TEST    "), // if not (R(A) <=> C) then pc++
-    opcode( true, true, OpArgMode::OpArgR, OpArgMode::OpArgU, OpMode::IABC, "TESTSET "), // if (R(B) <=> C) then R(A) := R(B) else pc++
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgU, OpMode::IABC, "CALL    "), // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgU, OpMode::IABC, "TAILCALL"), // return R(A)(R(A+1), ... ,R(A+B-1))
-    opcode( false, false, OpArgMode::OpArgU, OpArgMode::OpArgN, OpMode::IABC, "RETURN  "), // return R(A), ... ,R(A+B-2)
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IAsBx, "FORLOOP "), // R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IAsBx, "FORPREP "), // R(A)-=R(A+2); pc+=sBx
-    opcode( false, false, OpArgMode::OpArgN, OpArgMode::OpArgU, OpMode::IABC, "TFORCALL"),  // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
-    opcode( false, true, OpArgMode::OpArgR, OpArgMode::OpArgN, OpMode::IAsBx, "TFORLOOP"), // if R(A+1) ~= nil then { R(A)=R(A+1); pc += sBx }
-    opcode( false, false, OpArgMode::OpArgU, OpArgMode::OpArgU, OpMode::IABC, "SETLIST "),  // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgN, OpMode::IABx, "CLOSURE "),  // R(A) := closure(KPROTO[Bx])
-    opcode( false, true, OpArgMode::OpArgU, OpArgMode::OpArgN, OpMode::IABC, "VARARG  "),  // R(A), R(A+1), ..., R(A+B-2) = vararg
-    opcode( false, false, OpArgMode::OpArgU, OpArgMode::OpArgU, OpMode::IAx, "EXTRAARG"),   // extra (larger) argument for previous opcode
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "MOVE    ", action: move_}, // R(A) := R(B)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABx, name: "LOADK   ", action: load_k}, // R(A) := Kst(Bx)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgN, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABx, name: "LOADKX  ", action: load_kx}, // R(A) := Kst(extra arg)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "LOADBOOL", action: load_bool}, // R(A) := (bool)B; if (C) pc++
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "LOADNIL ", action: load_nil}, // R(A), R(A+1), ..., R(A+B) := nil
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "GETUPVAL", action: fail}, // R(A) := UpValue[B]
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "GETTABUP", action: fail}, // R(A) := UpValue[B][RK(C)]
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "GETTABLE", action: fail}, // R(A) := R(B)[RK(C)]
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SETTABUP", action: fail}, // UpValue[A][RK(B)] := RK(C)
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "SETUPVAL", action: fail}, // UpValue[B] := R(A)
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SETTABLE", action: fail}, // R(A)[RK(B)] := RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "NEWTABLE", action: fail}, // R(A) := {} (size = B,C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SELF    ", action: fail}, // R(A+1) := R(B); R(A) := R(B)[RK(C)]
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "ADD     ", action: add}, // R(A) := RK(B) + RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SUB     ", action: sub}, // R(A) := RK(B) - RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "MUL     ", action: mul}, // R(A) := RK(B) * RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "MOD     ", action: mod_}, // R(A) := RK(B) % RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "POW     ", action: pow}, // R(A) := RK(B) ^ RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "DIV     ", action: div}, // R(A) := RK(B) / RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "IDIV    ", action: idiv}, // R(A) := RK(B) // RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "BAND    ", action: band}, // R(A) := RK(B) & RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "BOR     ", action: bor}, // R(A) := RK(B) | RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "BXOR    ", action: bxor}, // R(A) := RK(B) ~ RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SHL     ", action: shl}, // R(A) := RK(B) << RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SHR     ", action: shr}, // R(A) := RK(B) >> RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "UNM     ", action: unm}, // R(A) := -R(B)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "BNOT    ", action: bnot}, // R(A) := ~R(B)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "NOT     ", action: not}, // R(A) := not R(B)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "LEN     ", action: len}, // R(A) := length of R(B)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgR, op_mode: OpMode::IABC, name: "CONCAT  ", action: concat}, // R(A) := R(B).. ... ..R(C)
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IAsBx, name: "JMP     ", action: jmp}, // pc+=sBx; if (A) close all upvalues >= R(A - 1)
+    Opcode{ test_flag: true, set_a_flag: false, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "EQ      ", action: eq}, // if ((RK(B) == RK(C)) ~= A) then pc++
+    Opcode{ test_flag: true, set_a_flag: false, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "LT      ", action: lt}, // if ((RK(B) <  RK(C)) ~= A) then pc++
+    Opcode{ test_flag: true, set_a_flag: false, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "LE      ", action: le}, // if ((RK(B) <= RK(C)) ~= A) then pc++
+    Opcode{ test_flag: true, set_a_flag: false, arg_b_mode: OpArgMode::OpArgN, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "TEST    ", action: test}, // if not (R(A) <=> C) then pc++
+    Opcode{ test_flag: true, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "TESTSET ", action: test_set}, // if (R(B) <=> C) then R(A) := R(B) else pc++
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "CALL    ", action: fail}, // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "TAILCALL", action: fail}, // return R(A)(R(A+1), ... ,R(A+B-1))
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "RETURN  ", action: fail}, // return R(A), ... ,R(A+B-2)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IAsBx, name: "FORLOOP ", action: for_loop}, // R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IAsBx, name: "FORPREP ", action: for_prep}, // R(A)-=R(A+2); pc+=sBx
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgN, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "TFORCALL", action: fail},  // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IAsBx, name: "TFORLOOP", action: fail}, // if R(A+1) ~= nil then { R(A)=R(A+1); pc += sBx }
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "SETLIST ", action: fail},  // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABx, name: "CLOSURE ", action: fail},  // R(A) := closure(KPROTO[Bx])
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "VARARG  ", action: fail},  // R(A), R(A+1), ..., R(A+B-2) = vararg
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IAx, name: "EXTRAARG", action: fail},   // extra (larger) argument for previous opcode
 ];
 
-const fn opcode(test_flag: bool, set_a_flag: bool, arg_b_mode: OpArgMode, arg_c_mode: OpArgMode, op_mode: OpMode, name: &'static str) -> Opcode {
-    Opcode {
-        test_flag,
-        set_a_flag,
-        arg_b_mode,
-        arg_c_mode,
-        op_mode,
-        name
-    }
+fn fail(_: u32, _: &mut LuaState) {
+    unimplemented!()
 }

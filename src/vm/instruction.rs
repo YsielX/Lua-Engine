@@ -1,6 +1,8 @@
+use crate::state::lua_state::LuaState;
+
 use super::opcodes::{OpArgMode, OpMode, OPCODES};
 
-const MAXARG_BX: isize = 1 << 18 - 1;
+const MAXARG_BX: isize = (1 << 18) - 1;
 const MAXARG_SBX: isize = MAXARG_BX >> 1;
 
 pub trait Instruction {
@@ -13,6 +15,7 @@ pub trait Instruction {
     fn a_bx(self) -> (isize, isize);
     fn a_sbx(self) -> (isize, isize);
     fn ax(self) -> isize;
+    fn execute(self, _: &mut LuaState);
 }
 
 impl Instruction for u32 {
@@ -56,5 +59,10 @@ impl Instruction for u32 {
 
     fn ax(self) -> isize {
         (self >> 6) as isize
+    }
+
+    fn execute(self, vm: &mut LuaState) {
+        let action = OPCODES[self.opcode() as usize].action;
+        action(self, vm);
     }
 }

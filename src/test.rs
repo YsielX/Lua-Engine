@@ -164,27 +164,27 @@ mod test_4ch {
 
     #[test]
     fn test() -> io::Result<()> {
-        let mut ls = state::lua_state::LuaState::new();
-        ls.push_boolean(true);
-        println!("{:#?}",ls);
-        ls.push_integer(10);
-        println!("{:#?}",ls);
-        ls.push_nil();
-        println!("{:#?}",ls);
-        ls.push_string(String::from("hello"));
-        println!("{:#?}",ls);
-        ls.push_value(-4);
-        println!("{:#?}",ls);
-        ls.replace(3);
-        println!("{:#?}",ls);
-        ls.set_top(6);
-        println!("{:#?}",ls);
-        ls.remove(-4);
-        println!("{:#?}",ls);
-        ls.rotate(1, 2);
-        println!("{:#?}",ls);
-        ls.set_top(-5);
-        println!("{:#?}",ls);
+        // let mut ls = state::lua_state::LuaState::new(20);
+        // ls.push_boolean(true);
+        // println!("{:#?}",ls);
+        // ls.push_integer(10);
+        // println!("{:#?}",ls);
+        // ls.push_nil();
+        // println!("{:#?}",ls);
+        // ls.push_string(String::from("hello"));
+        // println!("{:#?}",ls);
+        // ls.push_value(-4);
+        // println!("{:#?}",ls);
+        // ls.replace(3);
+        // println!("{:#?}",ls);
+        // ls.set_top(6);
+        // println!("{:#?}",ls);
+        // ls.remove(-4);
+        // println!("{:#?}",ls);
+        // ls.rotate(1, 2);
+        // println!("{:#?}",ls);
+        // ls.set_top(-5);
+        // println!("{:#?}",ls);
 
         Ok(())
     }
@@ -201,20 +201,79 @@ mod test_5ch {
     #[test]
     fn test() -> io::Result<()> {
 
-        let mut ls = LuaState::new();
-        ls.push_integer(1);
-        ls.push_string(String::from("2.0"));
-        ls.push_string(String::from("3.0"));
-        ls.push_number(4.0);
-        println!("{:#?}",ls);
+        // let mut ls = LuaState::new();
+        // ls.push_integer(1);
+        // ls.push_string(String::from("2.0"));
+        // ls.push_string(String::from("3.0"));
+        // ls.push_number(4.0);
+        // println!("{:#?}",ls);
 
-        ls.arith(LUA_OPADD);
-        ls.arith(LUA_OPBNOT);
-        ls.len(2);
-        ls.concat(3);
-        ls.push_boolean(ls.compare(1, 2, LUA_OPEQ));
-        println!("{:#?}",ls);
+        // ls.arith(LUA_OPADD);
+        // ls.arith(LUA_OPBNOT);
+        // ls.len(2);
+        // ls.concat(3);
+        // ls.push_boolean(ls.compare(1, 2, LUA_OPEQ));
+        // println!("{:#?}",ls);
 
         Ok(())
+    }
+}
+
+mod test_6ch {
+
+    use std::{fs, io};
+    use crate::api::lua_vm::LuaVM;
+    use crate::{vm, binchunk};
+    use crate::state::lua_state::LuaState;
+    use crate::api::lua_state::LuaAPI;
+    use crate::api::consts::*;
+
+    use vm::instruction::Instruction;
+    use binchunk::binary_chunk::Prototype;
+
+    #[test]
+    fn test() -> io::Result<()> {
+        // let mut args = env::args();
+        // let _program = args.next().expect("no program name");
+        // let arg1 = args.next().expect("no first argument");
+        let data = fs::read(String::from("./test/luac.out")).expect("Cannot open file");
+
+        let binarychunk = binchunk::undump(data);
+        lua_main(*binarychunk.main_func);
+        
+
+        Ok(())
+    }
+
+    fn lua_main(proto: Prototype) {
+        let n_regs = proto.max_stack_size;
+        let mut ls = LuaState::new((n_regs+8) as usize, proto);
+        ls.set_top(n_regs as isize);
+        loop {
+            let pc = ls.pc();
+            let inst = ls.fetch();
+            if inst.opcode() == 0x26 {
+                break;
+            }
+            inst.execute(&mut ls);
+            print!("[{:04}] {} ", pc + 1, inst.opname());
+            print_stack(&ls);
+        }
+
+    }
+
+    fn print_stack(ls: &LuaState) {
+        let top = ls.get_top();
+        for i in 1..top + 1 {
+            let j = i as isize;
+            let t = ls.type_id(j);
+            match t {
+                LUA_TBOOLEAN => print!("[{}]", ls.to_boolean(j)),
+                LUA_TNUMBER => print!("[{}]", ls.to_number(j)),
+                LUA_TSTRING => print!("[{:?}]", ls.to_string(j)),
+                _ => print!("[{}]", ls.type_name(t)), // other values
+            }
+        }
+        println!("");
     }
 }

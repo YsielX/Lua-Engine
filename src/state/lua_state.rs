@@ -1,18 +1,27 @@
 use crate::api::consts;
 use crate::api::lua_state::LuaAPI;
+use crate::api::lua_vm::LuaVM;
+use crate::binchunk::binary_chunk::Constant;
+use crate::binchunk::binary_chunk::Prototype;
 use super::lua_stack::LuaStack;
 use super::lua_value::LuaValue;
 use super::arith_ops::*;
 use super::compare_ops::*;
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct LuaState {
-    stack: LuaStack
+    stack: LuaStack,
+    proto: Prototype,
+    pc: isize
 }
 
 impl LuaState {
-    pub fn new() -> LuaState {
-        LuaState { stack: LuaStack::new(20) }
+    pub fn new(stack_size: usize, proto: Prototype) -> LuaState {
+        LuaState { 
+            stack: LuaStack::new(stack_size),
+            proto: proto,
+            pc: 0 
+        }
     }
 }
 
@@ -253,6 +262,42 @@ impl LuaAPI for LuaState {
                     panic!("concatenation error!");
                 }
             }
+        }
+    }
+}
+
+impl LuaVM for LuaState {
+    fn pc(&self) -> isize {
+        self.pc
+    }
+
+    fn add_pc(&mut self, n: isize) {
+        self.pc += n;
+    }
+
+    fn fetch(&mut self) -> u32 {
+        let instr = self.proto.code[self.pc as usize];
+        self.pc += 1;
+        instr
+    }
+
+    fn get_const(&mut self, idx: isize) {
+        let c = &self.proto.constants[idx as usize];
+        let val = match c {
+            Constant::Nil => LuaValue::Nil,
+            Constant::Boolean(b) => LuaValue::Boolean(*b),
+            Constant::Integer(i) => LuaValue::Integer(*i),
+            Constant::Number(n) => LuaValue::Number(*n),
+            Constant::Str(s) => LuaValue::Str((*s).clone())
+        };
+        self.stack.push(val);
+    }
+
+    fn get_rk(&mut self, rk: isize) {
+        if rk > 0xff {
+            self.get_const(rk & 0xff);
+        } else {
+            self.push_value(rk + 1);
         }
     }
 }
