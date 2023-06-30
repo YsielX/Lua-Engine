@@ -277,3 +277,62 @@ mod test_6ch {
         println!("");
     }
 }
+
+mod test_7ch {
+    
+    use std::{fs, io};
+    use crate::api::lua_vm::LuaVM;
+    use crate::{vm, binchunk};
+    use crate::state::lua_state::LuaState;
+    use crate::api::lua_state::LuaAPI;
+    use crate::api::consts::*;
+
+    use vm::instruction::Instruction;
+    use binchunk::binary_chunk::Prototype;
+
+    #[test]
+    fn test() -> io::Result<()> {
+        // let mut args = env::args();
+        // let _program = args.next().expect("no program name");
+        // let arg1 = args.next().expect("no first argument");
+        let data = fs::read(String::from("./test/luac.out")).expect("Cannot open file");
+
+        let binarychunk = binchunk::undump(data);
+        lua_main(*binarychunk.main_func);
+        
+
+        Ok(())
+    }
+
+    fn lua_main(proto: Prototype) {
+        let n_regs = proto.max_stack_size;
+        let mut ls = LuaState::new((n_regs+8) as usize, proto);
+        ls.set_top(n_regs as isize);
+        loop {
+            let pc = ls.pc();
+            let inst = ls.fetch();
+            if inst.opcode() == 0x26 {
+                break;
+            }
+            inst.execute(&mut ls);
+            print!("[{:04}] {} ", pc + 1, inst.opname());
+            print_stack(&ls);
+        }
+
+    }
+
+    fn print_stack(ls: &LuaState) {
+        let top = ls.get_top();
+        for i in 1..top + 1 {
+            let j = i as isize;
+            let t = ls.type_id(j);
+            match t {
+                LUA_TBOOLEAN => print!("[{}]", ls.to_boolean(j)),
+                LUA_TNUMBER => print!("[{}]", ls.to_number(j)),
+                LUA_TSTRING => print!("[{:?}]", ls.to_string(j)),
+                _ => print!("[{}]", ls.type_name(t)), // other values
+            }
+        }
+        println!("");
+    }
+}

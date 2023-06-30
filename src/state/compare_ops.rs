@@ -27,6 +27,7 @@ pub fn _eq(a: &LuaValue, b: &LuaValue) -> bool {
             LuaValue::Number(y) => x == y,
             _ => false
         }
+        _ => unimplemented!()
     }
 }
 

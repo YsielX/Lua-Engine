@@ -1,9 +1,13 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::api::consts;
 use crate::api::lua_state::LuaAPI;
 use crate::api::lua_vm::LuaVM;
 use crate::binchunk::binary_chunk::Constant;
 use crate::binchunk::binary_chunk::Prototype;
 use super::lua_stack::LuaStack;
+use super::lua_table::LuaTable;
 use super::lua_value::LuaValue;
 use super::arith_ops::*;
 use super::compare_ops::*;
@@ -19,7 +23,7 @@ impl LuaState {
     pub fn new(stack_size: usize, proto: Prototype) -> LuaState {
         LuaState { 
             stack: LuaStack::new(stack_size),
-            proto: proto,
+            proto,
             pc: 0 
         }
     }
@@ -238,11 +242,13 @@ impl LuaAPI for LuaState {
     }
 
     fn len(&mut self, idx: isize) {
-        let val = self.stack.get(idx);
-        if let Some(LuaValue::Str(s)) = val {
-            self.stack.push(LuaValue::Integer(s.len() as i64));
-        } else {
-            panic!("length error!");
+        if let Some(val) = self.stack.get(idx) {
+            let _len = match val {
+                LuaValue::Str(s) => LuaValue::Integer(s.len() as i64),
+                LuaValue::Table(t) => LuaValue::Integer(t.borrow().len() as i64),
+                _ => panic!("length error!")
+            };
+            self.stack.push(_len);
         }
     }
 
@@ -264,6 +270,87 @@ impl LuaAPI for LuaState {
             }
         }
     }
+
+    fn new_table(&mut self) {
+        self.create_table(0, 0);
+    }
+
+    fn create_table(&mut self, n_arr: usize, n_rec: usize) {
+        let table = LuaTable::new(n_arr, n_rec);
+        self.stack.push(LuaValue::Table(Rc::new(RefCell::new(table))));
+    }
+
+    fn get_table(&mut self, idx: isize) -> i8 {
+        if let Some(t) = self.stack.get(idx) {
+            let k = self.stack.pop();
+            if let LuaValue::Table(tbl) = t {
+                let v = tbl.borrow().get(&k);
+                let vty = v.ty();
+                self.stack.push(v);
+                return vty;
+            } 
+        }
+        panic!()
+    }
+
+    fn get_field(&mut self, idx: isize, k: &str) -> i8 {
+        if let Some(t) = self.stack.get(idx) {
+            if let LuaValue::Table(tbl) = t {
+                let v = tbl.borrow().get(&LuaValue::Str(k.to_string()));
+                let vty = v.ty();
+                self.stack.push(v);
+                return vty;
+            } 
+        }
+        panic!()
+    }
+
+    fn get_i(&mut self, idx: isize, i: i64) -> i8 {
+        if let Some(t) = self.stack.get(idx) {
+            if let LuaValue::Table(tbl) = t {
+                let v = tbl.borrow().get(&LuaValue::Integer(i));
+                let vty = v.ty();
+                self.stack.push(v);
+                return vty;
+            } 
+        }
+        panic!()
+    }
+
+    fn set_table(&mut self, idx: isize) {
+        if let Some(t) = self.stack.get(idx) {
+            let v = self.stack.pop();
+            let k = self.stack.pop();
+            if let LuaValue::Table(tbl) = t {
+                tbl.borrow_mut().put(&k, &v);
+                return;
+            }
+        }
+        panic!()
+    }
+
+    fn set_field(&mut self, idx: isize, k: &str) {
+        if let Some(t) = self.stack.get(idx) {
+            let v = self.stack.pop();
+            if let LuaValue::Table(tbl) = t {
+                tbl.borrow_mut().put(&LuaValue::Str(k.to_string()), &v);
+                return;
+            }
+        }
+    }
+
+    fn set_i(&mut self, idx: isize, i: i64) {
+        if let Some(t) = self.stack.get(idx) {
+            let v = self.stack.pop();
+            if let LuaValue::Table(tbl) = t {
+                tbl.borrow_mut().put(&LuaValue::Integer(i), &v);
+                return;
+            }
+        }
+    }
+
+
+
 }
 
 impl LuaVM for LuaState {

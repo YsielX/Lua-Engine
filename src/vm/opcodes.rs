@@ -3,6 +3,7 @@ use super::inst_for::*;
 use super::inst_load::*;
 use super::inst_misc::*;
 use super::inst_operators::*;
+use super::inst_table::*;
 
 #[derive(Copy, Clone)]
 pub enum OpMode {
@@ -38,11 +39,11 @@ pub const OPCODES: &[Opcode] = &[
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "LOADNIL ", action: load_nil}, // R(A), R(A+1), ..., R(A+B) := nil
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "GETUPVAL", action: fail}, // R(A) := UpValue[B]
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "GETTABUP", action: fail}, // R(A) := UpValue[B][RK(C)]
-    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "GETTABLE", action: fail}, // R(A) := R(B)[RK(C)]
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "GETTABLE", action: get_table}, // R(A) := R(B)[RK(C)]
     Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SETTABUP", action: fail}, // UpValue[A][RK(B)] := RK(C)
     Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "SETUPVAL", action: fail}, // UpValue[B] := R(A)
-    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SETTABLE", action: fail}, // R(A)[RK(B)] := RK(C)
-    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "NEWTABLE", action: fail}, // R(A) := {} (size = B,C)
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SETTABLE", action: set_table}, // R(A)[RK(B)] := RK(C)
+    Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "NEWTABLE", action: new_table}, // R(A) := {} (size = B,C)
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SELF    ", action: fail}, // R(A+1) := R(B); R(A) := R(B)[RK(C)]
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "ADD     ", action: add}, // R(A) := RK(B) + RK(C)
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgK, arg_c_mode: OpArgMode::OpArgK, op_mode: OpMode::IABC, name: "SUB     ", action: sub}, // R(A) := RK(B) - RK(C)
@@ -74,7 +75,7 @@ pub const OPCODES: &[Opcode] = &[
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IAsBx, name: "FORPREP ", action: for_prep}, // R(A)-=R(A+2); pc+=sBx
     Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgN, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "TFORCALL", action: fail},  // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgR, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IAsBx, name: "TFORLOOP", action: fail}, // if R(A+1) ~= nil then { R(A)=R(A+1); pc += sBx }
-    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "SETLIST ", action: fail},  // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+    Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IABC, name: "SETLIST ", action: set_list},  // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABx, name: "CLOSURE ", action: fail},  // R(A) := closure(KPROTO[Bx])
     Opcode{ test_flag: false, set_a_flag: true, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgN, op_mode: OpMode::IABC, name: "VARARG  ", action: fail},  // R(A), R(A+1), ..., R(A+B-2) = vararg
     Opcode{ test_flag: false, set_a_flag: false, arg_b_mode: OpArgMode::OpArgU, arg_c_mode: OpArgMode::OpArgU, op_mode: OpMode::IAx, name: "EXTRAARG", action: fail},   // extra (larger) argument for previous opcode
